@@ -1,86 +1,221 @@
-from flask import Flask, render_template, request, redirect, url_for, session
-import requests
+from flask import Flask, request, jsonify
+from sqlalchemy import create_engine, text
+import os
 
 app = Flask(__name__)
-app.secret_key = 'supersecretkey'  # Replace for production
 
-# Hardcoded credentials
-USERNAME = 'admin'
-PASSWORD = 'password123'
+# Database Connection
+DATABASE_URL = os.getenv("DATABASE_URL", "mssql+pyodbc://sa:Database94200%21@banksimdb.eastus.cloudapp.azure.com:1433/financedb?driver=ODBC+Driver+17+for+SQL+Server")
+engine = create_engine(DATABASE_URL)
 
-# Your FastAPI backend base URL
-BACKEND_API_BASE = 'https://<YOUR-FASTAPI-BACKEND>.azurewebsites.net'
+# ----------- Price Endpoints -----------
 
-@app.route('/')
-def login():
-    return render_template('login.html')
-
-@app.route('/login', methods=['POST'])
-def do_login():
-    username = request.form['username']
-    password = request.form['password']
-    if username == USERNAME and password == PASSWORD:
-        session['user'] = username
-        return redirect(url_for('dashboard'))
-    return render_template('login.html', error='Invalid credentials')
-
-@app.route('/dashboard')
-def dashboard():
-    if 'user' not in session:
-        return redirect(url_for('login'))
-    return render_template('dashboard.html')
-
-@app.route('/retrieve-price', methods=['GET', 'POST'])
+@app.route("/api/retrieve-price", methods=["GET"])
 def retrieve_price():
-    if 'user' not in session:
-        return redirect(url_for('login'))
-    
-    result = None
-    if request.method == 'POST':
-        instrument_id = request.form['instrument_id']
-        try:
-            response = requests.get(f"{BACKEND_API_BASE}/api/retrieve-price", params={"instrument_id": instrument_id})
-            result = response.json()
-        except Exception as e:
-            result = {"error": str(e)}
-    return render_template('retrieve_price.html', result=result)
+    symbol = request.args.get("symbol", "").upper()
+    if not symbol:
+        return jsonify({"error": "Symbol parameter is required"}), 400
 
-@app.route('/report-client-valuation', methods=['GET', 'POST'])
-def report_client_valuation():
-    if 'user' not in session:
-        return redirect(url_for('login'))
+    query = text("""
+        SELECT Symbol, Price, Name
+        FROM market_data.Stock
+        WHERE Symbol = :symbol
+    """)
+    with engine.connect() as conn:
+        result = conn.execute(query, {"symbol": symbol}).fetchone()
+        if not result:
+            return jsonify({"error": "Symbol not found"}), 404
 
-    result = None
-    if request.method == 'POST':
-        client_id = request.form['client_id']
-        valuation_data = request.form['valuation_data']
-        try:
-            payload = {"client_id": client_id, "valuation_data": valuation_data}
-            response = requests.post(f"{BACKEND_API_BASE}/api/report-client-valuation", json=payload)
-            result = response.json()
-        except Exception as e:
-            result = {"error": str(e)}
-    return render_template('report_client_valuation.html', result=result)
+        return jsonify({
+            "symbol": result.Symbol,
+            "price": float(result.Price),
+            "name": result.Name
+        })
 
-@app.route('/delete-price', methods=['GET', 'POST'])
+@app.route("/api/update-price", methods=["PUT"])
+def update_price():
+    data = request.json
+    symbol = request.args.get("symbol", "").upper()
+    if not symbol or "price" not in data:
+        return jsonify({"error": "Symbol and price required"}), 400
+
+    query = text("""
+        UPDATE market_data.Stock
+        SET Price = :price
+        WHERE Symbol = :symbol
+    """)
+    with engine.begin() as conn:
+        result = conn.execute(query, {"price": data["price"], "symbol": symbol})
+        if result.rowcount == 0:
+            return jsonify({"error": "Symbol not found"}), 404
+
+    return jsonify({"status": "success", "message": f"Price for {symbol} updated."})
+
+@app.route("/api/delete-price", methods=["DELETE"])
 def delete_price():
-    if 'user' not in session:
-        return redirect(url_for('login'))
+    symbol = request.args.get("symbol", "").upper()
+    if not symbol:
+        return jsonify({"error": "Symbol parameter is required"}), 400
 
-    result = None
-    if request.method == 'POST':
-        instrument_id = request.form['instrument_id']
-        try:
-            response = requests.delete(f"{BACKEND_API_BASE}/api/delete-price", params={"instrument_id": instrument_id})
-            result = response.json()
-        except Exception as e:
-            result = {"error": str(e)}
-    return render_template('delete_price.html', result=result)
+    query = text("""
+        DELETE FROM market_data.Stock
+        WHERE Symbol = :symbol
+    """)
+    with engine.begin() as conn:
+        result = conn.execute(query, {"symbol": symbol})
+        if result.rowcount == 0:
+            return jsonify({"error": "Symbol not found"}), 404
 
-@app.route('/logout')
-def logout():
-    session.clear()
-    return redirect(url_for('login'))
+    return jsonify({"status": "success", "message": f"Price for {symbol} deleted."})
 
-if __name__ == '__main__':
-    app.run(debug=True)
+# ----------- Client Valuation -----------
+
+@app.route("/api/client-valuation", methods=["GET"])
+def client_valuation():
+    query = text("""
+        SELECT
+            c.ClientCode,
+            c.ClientName,
+            SUM(pp.Quantity * s.Price) AS TotalValuation
+        FROM
+            market_data.Client c
+        JOIN market_data.portfolio p ON c.ClientCode = p.ClientCode
+        JOIN market_data.portfolio_position pp ON p.PortfolioID = pp.PortfolioID
+        JOIN market_data.Stock s ON pp.Ticker = s.Symbol
+        GROUP BY
+            c.ClientCode, c.ClientName
+    """)
+    with engine.connect() as conn:
+        results = conn.execute(query).fetchall()
+        valuations = [{
+            "ClientCode": row.ClientCode,
+            "ClientName": row.ClientName,
+            "TotalValuation": float(row.TotalValuation)
+        } for row in results]
+
+        return jsonify(valuations)
+
+# ----------- Portfolio CRUD -----------
+
+@app.route("/api/portfolio", methods=["POST"])
+def create_portfolio():
+    data = request.json
+    portfolio_id = data.get("PortfolioID")
+    client_code = data.get("ClientCode")
+    industry_type = data.get("IndustryType")
+    positions = data.get("Positions", [])
+
+    if not (portfolio_id and client_code and industry_type):
+        return jsonify({"error": "Missing PortfolioID, ClientCode or IndustryType"}), 400
+
+    insert_portfolio = text("""
+        INSERT INTO market_data.portfolio (PortfolioID, ClientCode, IndustryType)
+        VALUES (:portfolio_id, :client_code, :industry_type)
+    """)
+
+    insert_position = text("""
+        INSERT INTO market_data.portfolio_position (PositionID, PortfolioID, Ticker, Quantity)
+        VALUES (:position_id, :portfolio_id, :ticker, :quantity)
+    """)
+
+    with engine.begin() as conn:
+        conn.execute(insert_portfolio, {
+            "portfolio_id": portfolio_id,
+            "client_code": client_code,
+            "industry_type": industry_type
+        })
+
+        for idx, pos in enumerate(positions, start=1):
+            position_id = f"{portfolio_id}_POS{idx:03d}"
+            conn.execute(insert_position, {
+                "position_id": position_id,
+                "portfolio_id": portfolio_id,
+                "ticker": pos["Ticker"].upper(),
+                "quantity": pos["Quantity"]
+            })
+
+    return jsonify({"status": "success", "message": f"Portfolio {portfolio_id} created."})
+
+@app.route("/api/portfolio/<portfolio_id>", methods=["GET"])
+def get_portfolio(portfolio_id):
+    query_portfolio = text("""
+        SELECT PortfolioID, ClientCode, IndustryType
+        FROM market_data.portfolio
+        WHERE PortfolioID = :portfolio_id
+    """)
+    query_positions = text("""
+        SELECT PositionID, Ticker, Quantity
+        FROM market_data.portfolio_position
+        WHERE PortfolioID = :portfolio_id
+    """)
+    with engine.connect() as conn:
+        portfolio = conn.execute(query_portfolio, {"portfolio_id": portfolio_id}).fetchone()
+        if not portfolio:
+            return jsonify({"error": "Portfolio not found"}), 404
+
+        positions = conn.execute(query_positions, {"portfolio_id": portfolio_id}).fetchall()
+        return jsonify({
+            "PortfolioID": portfolio.PortfolioID,
+            "ClientCode": portfolio.ClientCode,
+            "IndustryType": portfolio.IndustryType,
+            "Positions": [
+                {"PositionID": pos.PositionID, "Ticker": pos.Ticker, "Quantity": pos.Quantity}
+                for pos in positions
+            ]
+        })
+
+@app.route("/api/portfolio/<portfolio_id>", methods=["PUT"])
+def update_portfolio(portfolio_id):
+    data = request.json
+    industry_type = data.get("IndustryType")
+    positions = data.get("Positions")
+
+    with engine.begin() as conn:
+        if industry_type:
+            conn.execute(text("""
+                UPDATE market_data.portfolio
+                SET IndustryType = :industry_type
+                WHERE PortfolioID = :portfolio_id
+            """), {"industry_type": industry_type, "portfolio_id": portfolio_id})
+
+        if positions is not None:
+            conn.execute(text("""
+                DELETE FROM market_data.portfolio_position
+                WHERE PortfolioID = :portfolio_id
+            """), {"portfolio_id": portfolio_id})
+
+            for idx, pos in enumerate(positions, start=1):
+                position_id = f"{portfolio_id}_POS{idx:03d}"
+                conn.execute(text("""
+                    INSERT INTO market_data.portfolio_position (PositionID, PortfolioID, Ticker, Quantity)
+                    VALUES (:position_id, :portfolio_id, :ticker, :quantity)
+                """), {
+                    "position_id": position_id,
+                    "portfolio_id": portfolio_id,
+                    "ticker": pos["Ticker"].upper(),
+                    "quantity": pos["Quantity"]
+                })
+
+    return jsonify({"status": "success", "message": f"Portfolio {portfolio_id} updated."})
+
+@app.route("/api/portfolio/<portfolio_id>", methods=["DELETE"])
+def delete_portfolio(portfolio_id):
+    with engine.begin() as conn:
+        conn.execute(text("""
+            DELETE FROM market_data.portfolio_position
+            WHERE PortfolioID = :portfolio_id
+        """), {"portfolio_id": portfolio_id})
+
+        result = conn.execute(text("""
+            DELETE FROM market_data.portfolio
+            WHERE PortfolioID = :portfolio_id
+        """), {"portfolio_id": portfolio_id})
+
+        if result.rowcount == 0:
+            return jsonify({"error": "Portfolio not found"}), 404
+
+    return jsonify({"status": "success", "message": f"Portfolio {portfolio_id} deleted."})
+
+# ----------- Run Flask App -----------
+if __name__ == "__main__":
+    app.run(host='0.0.0.0', port=8000)
