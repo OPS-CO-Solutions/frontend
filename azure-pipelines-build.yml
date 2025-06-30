@@ -1,45 +1,27 @@
-trigger: none
+name: frontend-1.0.$(Build.BuildId)
+
+trigger:
+- main
 
 pool:
   vmImage: 'ubuntu-latest'
 
 variables:
-  feedName: 'frontend-packages'
-  packageName: 'frontend-app'
-  packageVersion: '1.0.$(Build.BuildId)'
-  packagePath: '$(Build.ArtifactStagingDirectory)/package'
+  artifactName: 'frontend'
 
 steps:
 - script: |
-    echo "Preparing package folder..."
-    mkdir -p $(packagePath)
-    cp -r static $(packagePath)/
-    cp -r templates $(packagePath)/
-    cp app.py $(packagePath)/
-    cp requirements.txt $(packagePath)/
-  displayName: 'Prepare Frontend Package Folder'
+    echo "Packaging frontend app (no build-time Python execution)..."
+    mkdir $(Build.ArtifactStagingDirectory)/package
+    cp -r static $(Build.ArtifactStagingDirectory)/package/
+    cp -r templates $(Build.ArtifactStagingDirectory)/package/
+    cp app.py $(Build.ArtifactStagingDirectory)/package/
+    cp requirements.txt $(Build.ArtifactStagingDirectory)/package/
+  displayName: 'Package Frontend'
 
-- task: AzureCLI@2
+- task: PublishPipelineArtifact@1
   inputs:
-    azureSubscription: 'AzureDevopsConnection'
-    scriptType: 'bash'
-    scriptLocation: 'inlineScript'
-    inlineScript: |
-      echo "Installing Azure DevOps CLI extension (if not already present)..."
-      az extension add --name azure-devops || echo "Extension already exists"
-
-      # Map Azure DevOps variables to Bash variables
-      FEED_NAME='$(feedName)'
-      PACKAGE_NAME='$(packageName)'
-      PACKAGE_VERSION='$(packageVersion)'
-      PACKAGE_PATH='$(packagePath)'
-
-      echo "Publishing Universal Package: $PACKAGE_NAME - $PACKAGE_VERSION"
-
-      az artifacts universal publish \
-        --organization https://dev.azure.com/sre-azure-class \
-        --feed "$FEED_NAME" \
-        --name "$PACKAGE_NAME" \
-        --version "$PACKAGE_VERSION" \
-        --path "$PACKAGE_PATH"
-  displayName: 'Publish Universal Package (CLI Method)'
+    targetPath: '$(Build.ArtifactStagingDirectory)/package'
+    artifact: '$(artifactName)'
+    publishLocation: 'pipeline'
+  displayName: 'Publish Frontend Artifact'
