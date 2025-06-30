@@ -10,27 +10,21 @@ variables:
   artifactName: 'frontend'
   azureSubscription: 'AzureDevopsConnection'
   projectName: 'SRE_AZURE_CLASS'
-  buildPipelineName: 'OPS-CO-Solutions.frontend'
 
-jobs:
-- job: DeployJob
-  displayName: 'Deploy Latest Artifact for Frontend'
-  pool:
-    vmImage: 'ubuntu-latest'
-  steps:
-  - task: DownloadPipelineArtifact@2
-    displayName: 'Download Latest Artifact from Build Pipeline'
-    inputs:
-      buildType: 'current'
-      project: '$(projectName)'
-      definition: '$(buildPipelineName)'   # ✅ Correct pipeline name
-      artifactName: '$(artifactName)'
-      targetPath: '$(Pipeline.Workspace)/$(artifactName)'
+steps:
+- task: DownloadPipelineArtifact@2
+  displayName: 'Download Latest Artifact from Build Pipeline'
+  inputs:
+    buildType: 'current'
+    project: '$(projectName)'
+    definition: 'OPS-CO-Solutions.frontend'    # ✅ Must be pipeline name as string literal
+    artifactName: '$(artifactName)'
+    targetPath: '$(Pipeline.Workspace)/$(artifactName)'
 
-  - task: AzureWebApp@1
-    displayName: 'Deploy Frontend to Azure Web App'
-    inputs:
-      azureSubscription: '$(azureSubscription)'
-      appType: 'webAppLinux'
-      appName: '${{ parameters.appName }}'
-      package: '$(Pipeline.Workspace)/$(artifactName)'
+- task: AzureWebApp@1
+  displayName: 'Deploy Frontend to Azure Web App'
+  inputs:
+    azureSubscription: '$(azureSubscription)'
+    appType: 'webAppLinux'
+    appName: '${{ parameters.appName }}'
+    package: '$(Pipeline.Workspace)/$(artifactName)'
