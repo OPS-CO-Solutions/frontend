@@ -21,18 +21,25 @@ steps:
 
 - task: AzureCLI@2
   inputs:
-    azureSubscription: 'AzureDevopsConnection' 
+    azureSubscription: 'AzureDevopsConnection'
     scriptType: 'bash'
     scriptLocation: 'inlineScript'
     inlineScript: |
       echo "Installing Azure DevOps CLI extension (if not already present)..."
       az extension add --name azure-devops || echo "Extension already exists"
 
-      echo "Publishing Universal Package to Azure Artifacts Feed..."
+      # Map Azure DevOps variables to Bash variables
+      FEED_NAME='$(feedName)'
+      PACKAGE_NAME='$(packageName)'
+      PACKAGE_VERSION='$(packageVersion)'
+      PACKAGE_PATH='$(packagePath)'
+
+      echo "Publishing Universal Package: $PACKAGE_NAME - $PACKAGE_VERSION"
+
       az artifacts universal publish \
-        --organization https://dev.azure.com/sre-azure-class \ 
-        --feed $(feedName) \
-        --name $(packageName) \
-        --version $(packageVersion) \
-        --path $(packagePath)
+        --organization https://dev.azure.com/sre-azure-class \
+        --feed "$FEED_NAME" \
+        --name "$PACKAGE_NAME" \
+        --version "$PACKAGE_VERSION" \
+        --path "$PACKAGE_PATH"
   displayName: 'Publish Universal Package (CLI Method)'
