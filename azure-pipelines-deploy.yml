@@ -40,7 +40,7 @@ steps:
       LATEST_BUILD_NUMBER=""
 
       for BUILD_ID in $(az pipelines build list \
-        --pipeline-ids $PIPELINE_ID \
+        --definition-ids $PIPELINE_ID \
         --status completed \
         --result succeeded \
         --top 10 \
