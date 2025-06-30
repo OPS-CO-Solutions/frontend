@@ -2,7 +2,7 @@ trigger: none
 
 variables:
   projectName: 'SRE_AZURE_CLASS'
-  buildPipelineName: 'OPS-CO-Solutions.frontend'
+  buildPipelineName: 'frontend_deploy'
 
 pool:
   vmImage: 'ubuntu-latest'
@@ -13,6 +13,7 @@ steps:
   env:
     AZURE_DEVOPS_EXT_PATVAR: $(System.AccessToken)
   inputs:
+    azureSubscription: 'AzureDevopsConnection'
     scriptType: 'bash'
     scriptLocation: 'inlineScript'
     inlineScript: |
