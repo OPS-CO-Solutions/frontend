@@ -11,17 +11,36 @@ variables:
 
 steps:
 - script: |
-    echo "Packaging frontend app (no build-time Python execution)..."
+    echo "Checking for source changes in the repository..."
+
+    # Fetch the full Git history so we can compare against previous commits
+    git fetch --unshallow || echo "Repo already complete"
+
+    # Compare current HEAD with previous commit
+    CHANGED_FILES=$(git diff --name-only HEAD HEAD~1)
+
+    echo "Changed files:"
+    echo "$CHANGED_FILES"
+
+    if [ -z "$CHANGED_FILES" ]; then
+      echo "No changes detected. Skipping build."
+      # Fail the build to prevent artifact publication (or you can exit 0 if you want)
+      exit 1
+    fi
+  displayName: 'Skip Build If No Changes Detected'
+
+- script: |
+    echo "Packaging frontend app..."
     mkdir $(Build.ArtifactStagingDirectory)/package
     cp -r static $(Build.ArtifactStagingDirectory)/package/
     cp -r templates $(Build.ArtifactStagingDirectory)/package/
     cp app.py $(Build.ArtifactStagingDirectory)/package/
     cp requirements.txt $(Build.ArtifactStagingDirectory)/package/
-  displayName: 'Package Frontend'
+  displayName: 'Package Frontend Files'
 
 - task: PublishPipelineArtifact@1
   inputs:
     targetPath: '$(Build.ArtifactStagingDirectory)/package'
     artifact: '$(artifactName)'
     publishLocation: 'pipeline'
-  displayName: 'Publish Frontend Artifact'
+  displayName: 'Publish Frontend Pipeline Artifact'
