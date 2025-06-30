@@ -1,47 +1,44 @@
 trigger: none
 
 variables:
-  azureSubscription: 'AzureDevopsConnection'
   projectName: 'SRE_AZURE_CLASS'
-  buildPipelineName: 'frontend_build'
+  buildPipelineName: 'OPS-CO-Solutions.frontend'
 
-jobs:
-- job: GetLatestBuildId
-  displayName: 'Get Latest Successful Build ID'
-  pool:
-    vmImage: 'ubuntu-latest'
-  steps:
-  - task: AzureCLI@2
-    displayName: 'Fetch Latest Successful Build ID for $(buildPipelineName)'
-    env:
-      AZURE_DEVOPS_EXT_PATVAR: $(System.AccessToken)
-    inputs:
-      scriptType: 'bash'
-      scriptLocation: 'inlineScript'
-      inlineScript: |
-        echo "Installing Azure DevOps CLI extension (if not present)..."
-        az extension add --name azure-devops || echo "Already installed."
+pool:
+  vmImage: 'ubuntu-latest'
 
-        echo "Setting default DevOps organization and project..."
-        az devops configure --defaults organization=https://dev.azure.com/opscosolutions project=$(projectName)
+steps:
+- task: AzureCLI@2
+  displayName: 'Fetch Latest Successful Build ID for $(buildPipelineName)'
+  env:
+    AZURE_DEVOPS_EXT_PATVAR: $(System.AccessToken)
+  inputs:
+    scriptType: 'bash'
+    scriptLocation: 'inlineScript'
+    inlineScript: |
+      echo "Installing Azure DevOps CLI extension..."
+      az extension add --name azure-devops || echo "DevOps CLI already installed."
 
-        echo "Getting Pipeline ID for: $(buildPipelineName)..."
-        PIPELINE_ID=$(az pipelines show --name "$(buildPipelineName)" --query id --output tsv)
-        echo "Pipeline ID: $PIPELINE_ID"
+      echo "Setting Azure DevOps defaults..."
+      az devops configure --defaults organization=https://dev.azure.com/opscosolutions project=$(projectName)
 
-        echo "Fetching latest successful build ID..."
-        LATEST_BUILD_ID=$(az pipelines build list \
-          --definition-ids $PIPELINE_ID \
-          --status completed \
-          --result succeeded \
-          --top 1 \
-          --query '[0].id' \
-          --output tsv)
+      echo "Resolving pipeline ID for: $(buildPipelineName)..."
+      PIPELINE_ID=$(az pipelines show --name "$(buildPipelineName)" --query id --output tsv)
+      echo "Pipeline ID: $PIPELINE_ID"
 
-        if [ -z "$LATEST_BUILD_ID" ]; then
-          echo "##vso[task.complete result=Failed;]No successful builds found for pipeline: $(buildPipelineName)"
-          exit 1
-        fi
+      echo "Fetching latest successful build ID..."
+      LATEST_BUILD_ID=$(az pipelines build list \
+        --definition-ids $PIPELINE_ID \
+        --status completed \
+        --result succeeded \
+        --top 1 \
+        --query '[0].id' \
+        --output tsv)
 
-        echo "Latest successful build ID: $LATEST_BUILD_ID"
-        echo "##vso[task.setvariable variable=latestBuildId]$LATEST_BUILD_ID"
+      if [ -z "$LATEST_BUILD_ID" ]; then
+        echo "##vso[task.complete result=Failed;]No successful builds found for pipeline: $(buildPipelineName)"
+        exit 1
+      fi
+
+      echo "Latest build ID found: $LATEST_BUILD_ID"
+      echo "##vso[task.setvariable variable=latestBuildId]$LATEST_BUILD_ID"
