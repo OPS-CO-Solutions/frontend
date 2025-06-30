@@ -2,7 +2,7 @@ parameters:
 - name: appName
   displayName: 'Azure Web App Name'
   type: string
-  default: '<default-web-app-name>'
+  default: 'finweb-omar'
 
 trigger: none
 
@@ -13,7 +13,7 @@ variables:
   artifactName: 'frontend'
   azureSubscription: 'AzureDevopsConnection'
   projectName: 'SRE_AZURE_CLASS'
-  buildPipelineName: 'Frontend-Artifact-Pipeline'  # ✅ Replace with your build pipeline name
+  buildPipelineName: 'Frontend-Artifact-Pipeline'  # ✅ Replace with your exact Build Pipeline Name
 
 steps:
 - task: AzureCLI@2
@@ -29,13 +29,18 @@ steps:
       echo "Setting default organization and project..."
       az devops configure --defaults organization=https://dev.azure.com/SRE_AZURE_CLASS project=$(projectName)
 
-      echo "Finding latest successful build WITH artifacts for pipeline: $(buildPipelineName)..."
+      echo "Finding Build Pipeline ID for pipeline: $(buildPipelineName)..."
+      PIPELINE_ID=$(az pipelines show --name "$(buildPipelineName)" --query id --output tsv)
+      echo "Pipeline ID: $PIPELINE_ID"
+      echo "##vso[task.setvariable variable=buildPipelineId]$PIPELINE_ID"
+
+      echo "Finding latest successful build WITH artifacts for Pipeline ID: $PIPELINE_ID..."
 
       LATEST_BUILD_ID=""
       LATEST_BUILD_NUMBER=""
 
       for BUILD_ID in $(az pipelines build list \
-        --pipeline-name "$(buildPipelineName)" \
+        --pipeline-ids $PIPELINE_ID \
         --status completed \
         --result succeeded \
         --top 10 \
@@ -57,14 +62,14 @@ steps:
       fi
 
       echo "Latest build with artifacts: $LATEST_BUILD_NUMBER (Build ID: $LATEST_BUILD_ID)"
-      echo "##vso[task.setvariable variable=selectedBuildNumber;isOutput=true]$LATEST_BUILD_NUMBER"
+      echo "##vso[task.setvariable variable=selectedBuildNumber]$LATEST_BUILD_NUMBER"
 
 - task: DownloadPipelineArtifact@2
   displayName: 'Download Artifact from Selected Build'
   inputs:
     buildType: 'specific'
     project: '$(projectName)'
-    definition: '$(buildPipelineName)'
+    definition: '$(buildPipelineName)'   # ✅ Using pipeline name (string)
     specificBuildNumber: '$(selectedBuildNumber)'
     artifactName: '$(artifactName)'
     targetPath: '$(Pipeline.Workspace)/$(artifactName)'
@@ -73,6 +78,6 @@ steps:
   displayName: 'Deploy Frontend to Azure Web App'
   inputs:
     azureSubscription: '$(azureSubscription)'
-    appType: 'webAppLinux' 
+    appType: 'webAppLinux'                # ✅ Your target app type
     appName: '${{ parameters.appName }}'
     package: '$(Pipeline.Workspace)/$(artifactName)'
