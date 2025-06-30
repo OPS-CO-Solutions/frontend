@@ -11,20 +11,43 @@ variables:
   azureSubscription: 'AzureDevopsConnection'
   projectName: 'SRE_AZURE_CLASS'
 
-steps:
-- task: DownloadPipelineArtifact@2
-  displayName: 'Download Latest Artifact from Build Pipeline'
-  inputs:
-    buildType: 'current'
-    project: '$(projectName)'
-    definition: 'OPS-CO-Solutions.frontend'    # ✅ Must be pipeline name as string literal
-    artifactName: '$(artifactName)'
-    targetPath: '$(Pipeline.Workspace)/$(artifactName)'
+jobs:
+- job: DeployJob
+  displayName: 'Deploy Frontend from Latest Available Artifact'
+  pool:
+    vmImage: 'ubuntu-latest'
+  steps:
+  - task: DownloadPipelineArtifact@2
+    displayName: 'Download Latest Artifact from Build Pipeline'
+    inputs:
+      buildType: 'latest'                      # ✅ Always picks latest build with an artifact
+      project: '$(projectName)'
+      definition: 'frontend_build'  # ✅ Must stay as string literal pipeline name
+      artifactName: '$(artifactName)'
+      targetPath: '$(Pipeline.Workspace)/$(artifactName)'
 
-- task: AzureWebApp@1
-  displayName: 'Deploy Frontend to Azure Web App'
-  inputs:
-    azureSubscription: '$(azureSubscription)'
-    appType: 'webAppLinux'
-    appName: '${{ parameters.appName }}'
-    package: '$(Pipeline.Workspace)/$(artifactName)'
+  - script: |
+      echo "Listing artifact contents:"
+      ls -R "$(Pipeline.Workspace)/$(artifactName)"
+    displayName: 'List Artifact Files'
+
+  - script: |
+      echo "Searching for first deployable .zip file..."
+      PACKAGE_PATH=$(find "$(Pipeline.Workspace)/$(artifactName)" -type f -name "*.zip" | head -n 1)
+
+      if [ -z "$PACKAGE_PATH" ]; then
+        echo "##vso[task.complete result=Failed;]No .zip deployment package found in artifact. Aborting."
+        exit 1
+      fi
+
+      echo "Found package: $PACKAGE_PATH"
+      echo "##vso[task.setvariable variable=artifactPackagePath]$PACKAGE_PATH"
+    displayName: 'Find Deployment Package'
+
+  - task: AzureWebApp@1
+    displayName: 'Deploy Frontend to Azure Web App'
+    inputs:
+      azureSubscription: '$(azureSubscription)'
+      appType: 'webAppLinux'
+      appName: '${{ parameters.appName }}'
+      package: '$(artifactPackagePath)'
