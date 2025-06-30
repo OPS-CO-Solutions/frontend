@@ -1,0 +1,38 @@
+trigger: none
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+variables:
+  feedName: 'frontend-packages'
+  packageName: 'frontend-app'
+  packageVersion: '1.0.$(Build.BuildId)'
+  packagePath: '$(Build.ArtifactStagingDirectory)/package'
+
+steps:
+- script: |
+    echo "Preparing package folder..."
+    mkdir -p $(packagePath)
+    cp -r static $(packagePath)/
+    cp -r templates $(packagePath)/
+    cp app.py $(packagePath)/
+    cp requirements.txt $(packagePath)/
+  displayName: 'Prepare Frontend Package Folder'
+
+- task: AzureCLI@2
+  inputs:
+    azureSubscription: 'AzureDevopsConnection' 
+    scriptType: 'bash'
+    scriptLocation: 'inlineScript'
+    inlineScript: |
+      echo "Installing Azure DevOps CLI extension (if not already present)..."
+      az extension add --name azure-devops || echo "Extension already exists"
+
+      echo "Publishing Universal Package to Azure Artifacts Feed..."
+      az artifacts universal publish \
+        --organization https://dev.azure.com/sre-azure-class \ 
+        --feed $(feedName) \
+        --name $(packageName) \
+        --version $(packageVersion) \
+        --path $(packagePath)
+  displayName: 'Publish Universal Package (CLI Method)'
