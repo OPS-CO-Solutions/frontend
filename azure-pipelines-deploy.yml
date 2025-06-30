@@ -1,0 +1,78 @@
+parameters:
+- name: appName
+  displayName: 'Azure Web App Name'
+  type: string
+  default: '<default-web-app-name>'
+
+trigger: none
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+variables:
+  artifactName: 'frontend'
+  azureSubscription: 'AzureDevopsConnection'
+  projectName: 'SRE_AZURE_CLASS'
+  buildPipelineName: 'Frontend-Artifact-Pipeline'  # ✅ Replace with your build pipeline name
+
+steps:
+- task: AzureCLI@2
+  displayName: 'Find Latest Successful Build WITH Artifact'
+  inputs:
+    azureSubscription: '$(azureSubscription)'
+    scriptType: 'bash'
+    scriptLocation: 'inlineScript'
+    inlineScript: |
+      echo "Installing Azure DevOps CLI extension (if needed)..."
+      az extension add --name azure-devops || echo "Azure DevOps CLI extension already exists."
+
+      echo "Setting default organization and project..."
+      az devops configure --defaults organization=https://dev.azure.com/SRE_AZURE_CLASS project=$(projectName)
+
+      echo "Finding latest successful build WITH artifacts for pipeline: $(buildPipelineName)..."
+
+      LATEST_BUILD_ID=""
+      LATEST_BUILD_NUMBER=""
+
+      for BUILD_ID in $(az pipelines build list \
+        --pipeline-name "$(buildPipelineName)" \
+        --status completed \
+        --result succeeded \
+        --top 10 \
+        --query '[].id' \
+        --output tsv); do
+
+        ARTIFACT_COUNT=$(az pipelines build artifact list --build-id $BUILD_ID --query 'length(@)' --output tsv)
+
+        if [ "$ARTIFACT_COUNT" -gt 0 ]; then
+          LATEST_BUILD_ID=$BUILD_ID
+          LATEST_BUILD_NUMBER=$(az pipelines build show --id $BUILD_ID --query buildNumber --output tsv)
+          break
+        fi
+      done
+
+      if [ -z "$LATEST_BUILD_ID" ]; then
+        echo "##vso[task.complete result=Failed;]No recent successful builds with artifacts found! Aborting deployment."
+        exit 1
+      fi
+
+      echo "Latest build with artifacts: $LATEST_BUILD_NUMBER (Build ID: $LATEST_BUILD_ID)"
+      echo "##vso[task.setvariable variable=selectedBuildNumber;isOutput=true]$LATEST_BUILD_NUMBER"
+
+- task: DownloadPipelineArtifact@2
+  displayName: 'Download Artifact from Selected Build'
+  inputs:
+    buildType: 'specific'
+    project: '$(projectName)'
+    definition: '$(buildPipelineName)'
+    specificBuildNumber: '$(selectedBuildNumber)'
+    artifactName: '$(artifactName)'
+    targetPath: '$(Pipeline.Workspace)/$(artifactName)'
+
+- task: AzureWebApp@1
+  displayName: 'Deploy Frontend to Azure Web App'
+  inputs:
+    azureSubscription: '$(azureSubscription)'
+    appType: 'webAppLinux' 
+    appName: '${{ parameters.appName }}'
+    package: '$(Pipeline.Workspace)/$(artifactName)'
