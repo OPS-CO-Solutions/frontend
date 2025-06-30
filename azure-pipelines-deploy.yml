@@ -4,7 +4,7 @@ parameters:
 - name: appName
   displayName: 'Azure Web App Name'
   type: string
-  default: '<default-web-app-name>'
+  default: 'finweb-omar'
 
 variables:
   artifactName: 'frontend'
