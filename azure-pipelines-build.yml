@@ -11,9 +11,9 @@ variables:
 
 steps:
 - script: |
-    echo "Checking for source changes (excluding YAML pipeline files)..."
+    echo "Checking for source changes (excluding YAML files)..."
 
-    git fetch --unshallow || echo "Repo already has full history"
+    git fetch --unshallow || echo "Full history already present"
 
     CHANGED_FILES=$(git diff --name-only HEAD HEAD~1 -- . ':(exclude)*.yml' ':(exclude)*.yaml')
 
@@ -21,11 +21,11 @@ steps:
     echo "$CHANGED_FILES"
 
     if [ -z "$CHANGED_FILES" ]; then
-      echo "No code changes detected. Skipping build."
-      exit 1
+      echo "##vso[task.complete result=Skipped;]No relevant source changes detected. Skipping build."
+      exit 0
     fi
-  displayName: 'Skip Build If No Code Changes (Excluding YAML)'
-
+  displayName: 'Skip Build Gracefully If No Source Changes'
+  
 - script: |
     echo "Packaging frontend app..."
     mkdir $(Build.ArtifactStagingDirectory)/package
