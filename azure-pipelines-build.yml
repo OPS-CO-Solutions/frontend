@@ -21,8 +21,8 @@ steps:
     echo "$CHANGED_FILES"
 
     if [ -z "$CHANGED_FILES" ]; then
-      echo "##vso[task.complete result=Skipped;]No relevant source changes detected. Skipping build."
-      exit 0
+      echo "##vso[task.setvariable variable=skip_build;]true"
+      echo "##vso[task.complete result=Skipped;]No relevant source changes detected. Marking build as Skipped."
     fi
   displayName: 'Skip Build Gracefully If No Source Changes'
   
@@ -34,7 +34,7 @@ steps:
     cp app.py $(Build.ArtifactStagingDirectory)/package/
     cp requirements.txt $(Build.ArtifactStagingDirectory)/package/
   displayName: 'Package Frontend Files'
-  condition: succeeded()
+  condition: and(succeeded(), ne(variables['skip_build'], 'true'))
 
 - task: PublishPipelineArtifact@1
   inputs:
@@ -42,4 +42,4 @@ steps:
     artifact: '$(artifactName)'
     publishLocation: 'pipeline'
   displayName: 'Publish Frontend Pipeline Artifact'
-  condition: succeeded()
+  condition: and(succeeded(), ne(variables['skip_build'], 'true'))
