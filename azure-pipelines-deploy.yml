@@ -13,7 +13,7 @@ variables:
   artifactName: 'frontend'
   azureSubscription: 'AzureDevopsConnection'
   projectName: 'SRE_AZURE_CLASS'
-  buildPipelineName: 'Frontend-Artifact-Pipeline'  # ✅ Replace with your exact Build Pipeline Name
+  buildPipelineName: 'OPS-CO-Solutions.frontend'  # ✅ Replace with your exact Build Pipeline Name
 
 steps:
 - task: AzureCLI@2
