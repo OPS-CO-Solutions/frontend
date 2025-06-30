@@ -34,6 +34,7 @@ steps:
     cp app.py $(Build.ArtifactStagingDirectory)/package/
     cp requirements.txt $(Build.ArtifactStagingDirectory)/package/
   displayName: 'Package Frontend Files'
+  condition: succeeded()
 
 - task: PublishPipelineArtifact@1
   inputs:
@@ -41,3 +42,4 @@ steps:
     artifact: '$(artifactName)'
     publishLocation: 'pipeline'
   displayName: 'Publish Frontend Pipeline Artifact'
+  condition: succeeded()
