@@ -11,23 +11,20 @@ variables:
 
 steps:
 - script: |
-    echo "Checking for source changes in the repository..."
+    echo "Checking for source changes (excluding YAML pipeline files)..."
 
-    # Fetch the full Git history so we can compare against previous commits
-    git fetch --unshallow || echo "Repo already complete"
+    git fetch --unshallow || echo "Repo already has full history"
 
-    # Compare current HEAD with previous commit
-    CHANGED_FILES=$(git diff --name-only HEAD HEAD~1)
+    CHANGED_FILES=$(git diff --name-only HEAD HEAD~1 -- . ':(exclude)*.yml' ':(exclude)*.yaml')
 
     echo "Changed files:"
     echo "$CHANGED_FILES"
 
     if [ -z "$CHANGED_FILES" ]; then
-      echo "No changes detected. Skipping build."
-      # Fail the build to prevent artifact publication (or you can exit 0 if you want)
+      echo "No code changes detected. Skipping build."
       exit 1
     fi
-  displayName: 'Skip Build If No Changes Detected'
+  displayName: 'Skip Build If No Code Changes (Excluding YAML)'
 
 - script: |
     echo "Packaging frontend app..."
