@@ -9,11 +9,11 @@ pool:
 
 steps:
 - task: AzureCLI@2
-  displayName: 'Fetch Latest Successful Build ID using PAT'
+  displayName: 'Fetch Latest Successful Build ID using OAuth Token'
   env:
-    AZURE_DEVOPS_EXT_PAT: $(MY_DEVOPS_PAT)
+    AZURE_DEVOPS_EXT_PATVAR: $(System.AccessToken)
   inputs:
-    azureSubscription: 'Azure subscription 1 (be1ee93b-fc51-4367-8874-67653d0c5479)'
+    azureSubscription: ''
     scriptType: 'bash'
     scriptLocation: 'inlineScript'
     inlineScript: |
