@@ -11,7 +11,7 @@ steps:
 - task: AzureCLI@2
   displayName: 'Fetch Latest Successful Build ID for $(buildPipelineName)'
   env:
-    AZURE_DEVOPS_EXT_PATVAR: $(System.AccessToken)
+    MY_DEVOPS_PAT: $(MY_DEVOPS_PAT)
   inputs:
     azureSubscription: 'AzureDevopsConnection'
     scriptType: 'bash'
