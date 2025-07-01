@@ -13,7 +13,7 @@ steps:
   env:
     AZURE_DEVOPS_EXT_PATVAR: $(System.AccessToken)
   inputs:
-    azureSubscription: None
+    azureSubscription: 'AzureDevopsConnection'
     scriptType: 'bash'
     scriptLocation: 'inlineScript'
     inlineScript: |
