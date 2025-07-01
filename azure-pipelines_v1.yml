@@ -1,8 +1,12 @@
 name: frontend-1.0.$(Build.BuildId)
 
 trigger:
-- main
-
+  branches:
+    include:
+      - main
+  paths:
+    exclude:
+    - pipelines/**
 pool:
   vmImage: 'ubuntu-latest'
 
