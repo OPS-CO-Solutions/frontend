@@ -58,12 +58,12 @@ steps:
 
       if [ "$ARTIFACT_COUNT" -gt 0 ]; then
         echo "Found build with artifacts: $BUILD_ID"
-        selectedBuildId=$BUILD_ID
+        SELECTED_BUILD_ID=$BUILD_ID
         break
       fi
     done
 
-    if [ -z "$(selectedBuildId)" ]; then
+    if [ -z "$(SELECTED_BUILD_ID)" ]; then
       echo "##vso[task.complete result=Failed;]No successful builds with artifacts found in the last 10 builds!"
       exit 1
     fi
@@ -75,10 +75,10 @@ steps:
 # CATEGORY 3: Download and Package Artifact
 ######################
 - script: |
-    echo "Downloading artifact '${artifactName}' from Build ID: $(selectedBuildId)..."
+    echo "Downloading artifact '${artifactName}' from Build ID: $(SELECTED_BUILD_ID)..."
     mkdir -p artifacts
     az pipelines runs artifact download \
-      --run-id $(selectedBuildId) \
+      --run-id $(SELECTED_BUILD_ID) \
       --artifact-name $(artifactName) \
       --path ./artifacts
 
