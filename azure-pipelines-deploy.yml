@@ -23,15 +23,7 @@ steps:
 
     echo "Setting DevOps defaults..."
     az devops configure --defaults organization=https://dev.azure.com/opscosolutions project=$(projectName)
-  displayName: 'Azure DevOps CLI Setup and Login'
-  env:
-    MY_DEVOPS_PAT: $(MY_DEVOPS_PAT)
 
-
-######################
-# CATEGORY 2: Identify Target Build (With Artifacts)
-######################
-- script: |
     echo "Resolving Pipeline ID for: $(buildPipelineName)..."
     PIPELINE_ID=$(az pipelines show --name "$(buildPipelineName)" --query id --output tsv)
 
@@ -40,7 +32,7 @@ steps:
       exit 1
     fi
 
-    echo "Searching for latest successful build with artifacts..."
+    echo "Looking for the latest successful build with artifacts..."
 
     for BUILD_ID in $(az pipelines build list \
       --definition-ids $PIPELINE_ID \
@@ -50,7 +42,7 @@ steps:
       --query '[].id' \
       --output tsv); do
 
-      echo "Checking Build ID: $BUILD_ID for artifacts..."
+      echo "Checking Build ID: $BUILD_ID"
 
       ARTIFACT_COUNT=$(az pipelines runs artifact list \
         --run-id $BUILD_ID \
@@ -59,63 +51,25 @@ steps:
 
       if [ "$ARTIFACT_COUNT" -gt 0 ]; then
         echo "Found build with artifacts: $BUILD_ID"
+        SELECTED_BUILD_ID=$BUILD_ID
         break
       fi
     done
 
-    if [ -z "$(BUILD_ID)" ]; then
+    if [ -z "$SELECTED_BUILD_ID" ]; then
       echo "##vso[task.complete result=Failed;]No successful builds with artifacts found in the last 10 builds!"
       exit 1
     fi
-  displayName: 'Find Last Successful Build with Artifacts'
-  env:
-    MY_DEVOPS_PAT: $(MY_DEVOPS_PAT)
 
-######################
-# CATEGORY 3: Download and Package Artifact
-######################
-- script: |
-    echo "Downloading artifact '${artifactName}' from Build ID: $(BUILD_ID)..."
+    echo "Downloading artifact '${artifactName}' from Build ID: $SELECTED_BUILD_ID..."
     mkdir -p artifacts
     az pipelines runs artifact download \
-      --run-id $(BUILD_ID) \
+      --run-id $SELECTED_BUILD_ID \
       --artifact-name $(artifactName) \
       --path ./artifacts
 
     echo "Listing downloaded files..."
     ls -R ./artifacts
-
-    echo "Displaying content of file: $(targetFile)..."
-    TARGET_PATH="./artifacts/$(artifactName)/$(targetFile)"
-    if [ -f "$TARGET_PATH" ]; then
-      echo "===== File Content Start ====="
-      cat "$TARGET_PATH"
-      echo "===== File Content End ====="
-    else
-      echo "File '$TARGET_PATH' not found! Skipping display."
-    fi
-
-    echo "Zipping artifact for deployment..."
-    cd ./artifacts/$(artifactName)
-    zip -r ../../../$(zipOutput) .
-    cd ../../../
-  displayName: 'Download Artifact and Create Deployment Package'
+  displayName: 'Fetch Last Successful Build That Has Artifacts'
   env:
     MY_DEVOPS_PAT: $(MY_DEVOPS_PAT)
-
-######################
-# CATEGORY 4: Deploy to Azure Web App
-######################
-- script: |
-    echo "Installing Azure WebApp CLI extension..."
-    az extension add --name webapp || echo "Already installed."
-
-    echo "Deploying $(zipOutput) to Azure Web App: $(webAppName)..."
-    az webapp deploy \
-      --resource-group $(resourceGroup) \
-      --name $(webAppName) \
-      --src-path $(zipOutput) \
-      --type zip
-
-    echo "Deployment completed successfully."
-  displayName: 'Deploy to Azure Web App'
