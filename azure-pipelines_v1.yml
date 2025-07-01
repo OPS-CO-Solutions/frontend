@@ -1,0 +1,29 @@
+name: frontend-1.0.$(Build.BuildId)
+
+trigger:
+- main
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+variables:
+  artifactName: 'frontend'
+
+steps:
+- script: |
+    echo "Packaging frontend app..."
+    mkdir $(Build.ArtifactStagingDirectory)/package
+    cp -r static $(Build.ArtifactStagingDirectory)/package/
+    cp -r templates $(Build.ArtifactStagingDirectory)/package/
+    cp app.py $(Build.ArtifactStagingDirectory)/package/
+    cp requirements.txt $(Build.ArtifactStagingDirectory)/package/
+  displayName: 'Package Frontend Files'
+  condition: and(succeeded(), ne(variables['skip_build'], 'true'))
+
+- task: PublishPipelineArtifact@1
+  inputs:
+    targetPath: '$(Build.ArtifactStagingDirectory)/package'
+    artifact: '$(artifactName)'
+    publishLocation: 'pipeline'
+  displayName: 'Publish Frontend Pipeline Artifact'
+  condition: and(succeeded(), ne(variables['skip_build'], 'true'))
