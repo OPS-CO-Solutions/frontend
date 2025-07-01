@@ -73,16 +73,20 @@ steps:
     zip -r ../$zipOutput .
     cd ..
 
-    echo "Installing Azure WebApp CLI extension..."
-    az extension add --name webapp || echo "Already installed."
-
-    echo "Deploying $zipOutput to Azure Web App: $(webAppName)..."
-    az webapp deploy \
-      --resource-group $(resourceGroup) \
-      --name $(webAppName) \
-      --src-path ../$zipOutput \
-      --type zip
   displayName: 'Fetch Last Successful Build That Has Artifacts'
   env:
     MY_DEVOPS_PAT: $(MY_DEVOPS_PAT)
 
+- task: AzureCLI@2
+  inputs:
+    azureSubscription: 'AzureDevopsConnection'        # <-- Name of your service connection
+    scriptType: 'bash'
+    scriptLocation: 'inlineScript'
+    inlineScript: |
+      echo "Deploying $zipOutput to Azure Web App: $(webAppName)..."
+      az webapp deploy \
+        --resource-group $(resourceGroup) \
+        --name $(webAppName) \
+        --src-path $(Pipeline.Workspace)/$zipOutput \
+        --type zip
+  displayName: 'Deploy Artifact to Azure Web App'
