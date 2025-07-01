@@ -13,7 +13,7 @@ steps:
     az extension add --name azure-devops || echo "Already installed."
 
     echo "Logging into Azure DevOps CLI using PAT..."
-    echo "$(MY_DEVOPS_PAT)" | az devops login --organization https://dev.azure.com/opscosolutions --token -
+    echo "$(MY_DEVOPS_PAT)" | az devops login --token -
 
     echo "Setting DevOps defaults..."
     az devops configure --defaults organization=https://dev.azure.com/opscosolutions project=$(projectName)
