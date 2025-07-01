@@ -8,38 +8,25 @@ pool:
   vmImage: 'ubuntu-latest'
 
 steps:
-- task: AzureCLI@2
-  displayName: 'Fetch Latest Successful Build ID using OAuth Token'
+- script: |
+    echo "Installing Azure DevOps CLI extension (if needed)..."
+    az extension add --name azure-devops || echo "Already installed."
+
+    echo "Setting Azure DevOps defaults..."
+    az devops configure --defaults organization=https://dev.azure.com/opscosolutions project=$(projectName)
+
+    echo "Getting Pipeline ID for $(buildPipelineName)..."
+    PIPELINE_ID=$(az pipelines show --name "$(buildPipelineName)" --query id --output tsv)
+    echo "Pipeline ID: $PIPELINE_ID"
+
+    echo "Listing recent builds for pipeline ID: $PIPELINE_ID..."
+    az pipelines build list \
+      --definition-ids $PIPELINE_ID \
+      --status completed \
+      --result succeeded \
+      --top 5 \
+      --query '[].{BuildID:id, BuildNumber:buildNumber, Result:result, FinishTime:finishTime}' \
+      --output table
   env:
     AZURE_DEVOPS_EXT_PATVAR: $(System.AccessToken)
-  inputs:
-    azureSubscription: 'AzureDevopsConnection'
-    scriptType: 'bash'
-    scriptLocation: 'inlineScript'
-    inlineScript: |
-      echo "Installing Azure DevOps CLI extension..."
-      az extension add --name azure-devops || echo "Already installed."
-
-      echo "Setting organization and project defaults..."
-      az devops configure --defaults organization=https://dev.azure.com/opscosolutions project=$(projectName)
-
-      echo "Resolving pipeline ID for: $(buildPipelineName)..."
-      PIPELINE_ID=$(az pipelines show --name "$(buildPipelineName)" --query id --output tsv)
-      echo "Pipeline ID: $PIPELINE_ID"
-
-      echo "Fetching latest successful build ID..."
-      LATEST_BUILD_ID=$(az pipelines build list \
-        --definition-ids $PIPELINE_ID \
-        --status completed \
-        --result succeeded \
-        --top 1 \
-        --query '[0].id' \
-        --output tsv)
-
-      if [ -z "$LATEST_BUILD_ID" ]; then
-        echo "##vso[task.complete result=Failed;]No successful builds found for pipeline: $(buildPipelineName)"
-        exit 1
-      fi
-
-      echo "Latest build ID: $LATEST_BUILD_ID"
-      echo "##vso[task.setvariable variable=latestBuildId]$LATEST_BUILD_ID"
+  displayName: 'List Last 5 Successful Builds for Pipeline'
