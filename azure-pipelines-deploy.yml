@@ -7,7 +7,6 @@ variables:
   targetFile: 'app.py'                      # Optional: Which file inside artifact to display
   resourceGroup: 'sre_labs_omar'      # <-- Update this
   webAppName: 'finweb-omar'                 # Azure Web App target
-  zipOutput: 'deploy.zip'                   # Final deployment package name
 
 
 ######################
@@ -70,9 +69,9 @@ steps:
 
     echo "Zipping artifact content for deployment..."
     cd artifacts
-    zip -r ../$zipOutput .
+    zip -r ../deploy.zip .
     cd ..
-
+    ls
   displayName: 'Fetch Last Successful Build That Has Artifacts'
   env:
     MY_DEVOPS_PAT: $(MY_DEVOPS_PAT)
@@ -83,10 +82,11 @@ steps:
     scriptType: 'bash'
     scriptLocation: 'inlineScript'
     inlineScript: |
-      echo "Deploying $zipOutput to Azure Web App: $(webAppName)..."
+      echo "Deploying deploy.zip to Azure Web App: $(webAppName)..."
+      ls
       az webapp deploy \
         --resource-group $(resourceGroup) \
         --name $(webAppName) \
-        --src-path $zipOutput \
+        --src-path deploy.zip \
         --type zip
   displayName: 'Deploy Artifact to Azure Web App'
