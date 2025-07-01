@@ -13,7 +13,7 @@ steps:
   env:
     MY_DEVOPS_PAT: $(MY_DEVOPS_PAT)
   inputs:
-    azureSubscription: 'AzureDevopsConnection'
+    azureSubscription: 'Azure subscription 1 (be1ee93b-fc51-4367-8874-67653d0c5479)'
     scriptType: 'bash'
     scriptLocation: 'inlineScript'
     inlineScript: |
