@@ -6,7 +6,8 @@ trigger:
       - main
   paths:
     exclude:
-    - pipelines/**
+    - '*.yml'
+
 pool:
   vmImage: 'ubuntu-latest'
 
