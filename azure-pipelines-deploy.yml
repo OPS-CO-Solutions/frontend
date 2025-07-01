@@ -3,6 +3,8 @@ trigger: none
 variables:
   projectName: 'SRE_AZURE_CLASS'
   buildPipelineName: 'frontend_build'
+  artifactName: 'frontend'                # This matches your publish step
+  targetFile: 'app.py'                    # Example file inside your artifact
 
 pool:
   vmImage: 'ubuntu-latest'
@@ -28,14 +30,45 @@ steps:
 
     echo "Pipeline ID: $PIPELINE_ID"
 
-    echo "Listing last 5 successful builds..."
-    az pipelines build list \
+    echo "Getting the latest successful build..."
+    LAST_SUCCESSFUL_BUILD_ID=$(az pipelines build list \
       --definition-ids $PIPELINE_ID \
       --status completed \
       --result succeeded \
-      --top 5 \
-      --query '[].{BuildID:id, BuildNumber:buildNumber, Result:result, FinishTime:finishTime}' \
-      --output table
-  displayName: 'List Last 5 Successful Builds Using PAT'
+      --top 1 \
+      --query '[0].id' \
+      --output tsv)
+
+    if [ -z "$LAST_SUCCESSFUL_BUILD_ID" ]; then
+      echo "##vso[task.complete result=Failed;]No successful builds found!"
+      exit 1
+    fi
+
+    echo "Last Successful Build ID: $LAST_SUCCESSFUL_BUILD_ID"
+
+    echo "Downloading artifact '${artifactName}' from Build ID: $LAST_SUCCESSFUL_BUILD_ID..."
+    mkdir -p artifacts
+    az pipelines runs artifact download \
+      --run-id $LAST_SUCCESSFUL_BUILD_ID \
+      --artifact-name $(artifactName) \
+      --path ./artifacts
+
+    echo "Artifact downloaded."
+
+    echo "Listing downloaded files..."
+    ls -R ./artifacts
+
+    echo "Displaying content of the target file: $(targetFile)..."
+    TARGET_PATH="./artifacts/$(artifactName)/$(targetFile)"
+
+    if [ -f "$TARGET_PATH" ]; then
+      echo "===== Artifact File Content Start ====="
+      cat "$TARGET_PATH"
+      echo "===== Artifact File Content End ====="
+    else
+      echo "File '$TARGET_PATH' not found!"
+      exit 1
+    fi
+  displayName: 'Fetch and Display Last Successful Build Artifact'
   env:
-    my_devops_pat: $(MY_DEVOPS_PAT)
+    MY_DEVOPS_PAT: $(MY_DEVOPS_PAT)
