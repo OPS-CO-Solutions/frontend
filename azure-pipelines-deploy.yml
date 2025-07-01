@@ -9,17 +9,26 @@ pool:
 
 steps:
 - script: |
-    echo "Installing Azure DevOps CLI extension (if needed)..."
+    echo "Installing Azure DevOps CLI extension..."
     az extension add --name azure-devops || echo "Already installed."
 
-    echo "Setting Azure DevOps defaults..."
+    echo "Logging into Azure DevOps CLI using PAT..."
+    echo "$(MY_DEVOPS_PAT)" | az devops login --organization https://dev.azure.com/opscosolutions --token -
+
+    echo "Setting DevOps defaults..."
     az devops configure --defaults organization=https://dev.azure.com/opscosolutions project=$(projectName)
 
-    echo "Getting Pipeline ID for $(buildPipelineName)..."
+    echo "Resolving Pipeline ID for: $(buildPipelineName)..."
     PIPELINE_ID=$(az pipelines show --name "$(buildPipelineName)" --query id --output tsv)
+
+    if [ -z "$PIPELINE_ID" ]; then
+      echo "##vso[task.complete result=Failed;]Pipeline '$(buildPipelineName)' not found!"
+      exit 1
+    fi
+
     echo "Pipeline ID: $PIPELINE_ID"
 
-    echo "Listing recent builds for pipeline ID: $PIPELINE_ID..."
+    echo "Listing last 5 successful builds..."
     az pipelines build list \
       --definition-ids $PIPELINE_ID \
       --status completed \
@@ -27,6 +36,6 @@ steps:
       --top 5 \
       --query '[].{BuildID:id, BuildNumber:buildNumber, Result:result, FinishTime:finishTime}' \
       --output table
+  displayName: 'List Last 5 Successful Builds Using PAT'
   env:
-    AZURE_DEVOPS_EXT_PATVAR: $(System.AccessToken)
-  displayName: 'List Last 5 Successful Builds for Pipeline'
+    my_devops_pat: $(MY_DEVOPS_PAT)
