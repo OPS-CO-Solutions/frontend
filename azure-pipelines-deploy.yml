@@ -2,7 +2,7 @@ trigger: none
 
 variables:
   projectName: 'SRE_AZURE_CLASS'
-  buildPipelineName: 'frontend_deploy'
+  buildPipelineName: 'frontend_build'
 
 pool:
   vmImage: 'ubuntu-latest'
