@@ -80,7 +80,7 @@ steps:
     az webapp deploy \
       --resource-group $(resourceGroup) \
       --name $(webAppName) \
-      --src-path $zipOutput \
+      --src-path ../$zipOutput \
       --type zip
   displayName: 'Fetch Last Successful Build That Has Artifacts'
   env:
