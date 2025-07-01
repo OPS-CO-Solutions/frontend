@@ -61,15 +61,28 @@ steps:
       exit 1
     fi
 
-    echo "Downloading artifact '${artifactName}' from Build ID: $SELECTED_BUILD_ID..."
+    echo "Downloading artifact from Build ID: $SELECTED_BUILD_ID..."
     mkdir -p artifacts
     az pipelines runs artifact download \
       --run-id $SELECTED_BUILD_ID \
       --artifact-name $(artifactName) \
       --path ./artifacts
 
-    echo "Listing downloaded files..."
-    ls -R ./artifacts
+    echo "Zipping artifact content for deployment..."
+    cd artifacts
+    zip -r ../$zipOutput .
+    cd ..
+
+    echo "Installing Azure WebApp CLI extension..."
+    az extension add --name webapp || echo "Already installed."
+
+    echo "Deploying $zipOutput to Azure Web App: $(webAppName)..."
+    az webapp deploy \
+      --resource-group $(resourceGroup) \
+      --name $(webAppName) \
+      --src-path $zipOutput \
+      --type zip
   displayName: 'Fetch Last Successful Build That Has Artifacts'
   env:
     MY_DEVOPS_PAT: $(MY_DEVOPS_PAT)
+
