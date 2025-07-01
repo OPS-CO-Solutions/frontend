@@ -58,7 +58,7 @@ steps:
 
       if [ "$ARTIFACT_COUNT" -gt 0 ]; then
         echo "Found build with artifacts: $BUILD_ID"
-        echo "##vso[task.setvariable variable=selectedBuildId;]$BUILD_ID"
+        SELECTED_BUILD_ID=$BUILD_ID
         break
       fi
     done
