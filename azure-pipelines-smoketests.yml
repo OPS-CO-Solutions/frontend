@@ -10,62 +10,78 @@ variables:
   backendBaseUrl: 'https://finapi-omar.azurewebsites.net'
   frontendBaseUrl: 'https://finweb-omar.azurewebsites.net'
   maxWaitSeconds: 480
-  checkIntervalSeconds: 10
+  checkIntervalSeconds: 5
 
 steps:
+- task: UsePythonVersion@0
+  inputs:
+    versionSpec: '3.11'
 
-
-- script: |
-    echo "⏳ Waiting for Frontend App to become available..."
-
-    start_time=$(date +%s)
-    while true; do
-      status=$(curl -s -o /dev/null -w "%{http_code}" "$frontendBaseUrl/login")
-      if [ "$status" -eq 200 ]; then
-        echo "✅ Frontend is ready"
-        sleep 5
-        break
-      fi
-
-      now=$(date +%s)
-      elapsed=$((now - start_time))
-
-      if [ "$elapsed" -ge $maxWaitSeconds ]; then
-        echo "❌ Frontend did not become ready in time"
-        exit 1
-      fi
-
-      echo "Still waiting... ($elapsed seconds elapsed)"
-      sleep $checkIntervalSeconds
-    done
-  displayName: 'Wait for Frontend App to Be Ready'
-
+# -------------------------------
+# Wait for Backend App to be Ready
+# -------------------------------
 - script: |
     echo "⏳ Waiting for Backend App to become available..."
 
     start_time=$(date +%s)
+    max_wait=${maxWaitSeconds:-480}
+    interval=${checkIntervalSeconds:-5}
+
     while true; do
       status=$(curl -s -o /dev/null -w "%{http_code}" "$backendBaseUrl/api/slow-endpoint")
+
       if [ "$status" -eq 200 ]; then
         echo "✅ Backend is ready"
-        sleep 5
         break
       fi
 
       now=$(date +%s)
       elapsed=$((now - start_time))
 
-      if [ "$elapsed" -ge $maxWaitSeconds ]; then
-        echo "❌ Backend did not become ready in time"
+      if [ "$elapsed" -ge "$max_wait" ]; then
+        echo "❌ Backend did not become ready in $max_wait seconds"
         exit 1
       fi
 
-      echo "Still waiting... ($elapsed seconds elapsed)"
-      sleep $checkIntervalSeconds
+      echo "⏳ Still waiting for backend... (${elapsed}s elapsed)"
+      sleep "$interval"
     done
   displayName: 'Wait for Backend App to Be Ready'
 
+# -------------------------------
+# Wait for Frontend App to be Ready
+# -------------------------------
+- script: |
+    echo "⏳ Waiting for Frontend App to become available..."
 
+    start_time=$(date +%s)
+    max_wait=${maxWaitSeconds:-180}
+    interval=${checkIntervalSeconds:-5}
+
+    while true; do
+      status=$(curl -s -o /dev/null -w "%{http_code}" "$frontendBaseUrl/login")
+
+      if [ "$status" -eq 200 ]; then
+        echo "✅ Frontend is ready"
+        break
+      fi
+
+      now=$(date +%s)
+      elapsed=$((now - start_time))
+
+      if [ "$elapsed" -ge "$max_wait" ]; then
+        echo "❌ Frontend did not become ready in $max_wait seconds"
+        exit 1
+      fi
+
+      echo "⏳ Still waiting for frontend... (${elapsed}s elapsed)"
+      sleep "$interval"
+    done
+  displayName: 'Wait for Frontend App to Be Ready'
+
+# -------------------------------
+# Backend Endpoint Tests
+# -------------------------------
 - script: |
     echo "🔍 Testing Backend App Endpoints with curl..."
 
@@ -81,15 +97,19 @@ steps:
       full_url="${backendBaseUrl}${endpoint}"
       echo "➡️  Testing $full_url"
       http_status=$(curl -s -o /dev/null -w "%{http_code}" "$full_url")
+
       if [ "$http_status" -eq 200 ]; then
         echo "✅ $endpoint OK"
       else
         echo "❌ $endpoint failed with status $http_status"
-        #exit 1
+        exit 1
       fi
     done
   displayName: 'Run Backend Smoke Tests'
 
+# -------------------------------
+# Frontend Route Tests
+# -------------------------------
 - script: |
     echo "🔍 Testing Frontend App Routes with curl..."
 
@@ -103,11 +123,6 @@ steps:
       full_url="${frontendBaseUrl}${endpoint}"
       echo "➡️  Testing $full_url"
       http_status=$(curl -s -o /dev/null -w "%{http_code}" "$full_url")
+
       if [ "$http_status" -eq 200 ]; then
-        echo "✅ $endpoint OK"
-      else
-        echo "❌ $endpoint failed with status $http_status"
-        #exit 1
-      fi
-    done
-  displayName: 'Run Frontend Smoke Tests'
+        echo "✅ $endpoint
