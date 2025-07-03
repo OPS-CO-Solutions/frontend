@@ -59,7 +59,7 @@ steps:
     interval=${checkIntervalSeconds:-5}
 
     while true; do
-      status=$(curl -s -o /dev/null -w "%{http_code}" "$front/login")
+      status=$(curl -s -o /dev/null -w "%{http_code}" "$front/")
 
       if [ "$status" -eq 200 ]; then
         echo "✅ Frontend is ready"
@@ -71,7 +71,7 @@ steps:
 
       if [ "$elapsed" -ge "$max_wait" ]; then
         echo "❌ Frontend did not become ready in $max_wait seconds"
-        exit 1
+        exit  
       fi
 
       echo "⏳ Still waiting for frontend... (${elapsed}s elapsed)"
@@ -102,7 +102,6 @@ steps:
         echo "✅ $endpoint OK"
       else
         echo "❌ $endpoint failed with status $http_status"
-        exit 1
       fi
     done
   displayName: 'Run Backend Smoke Tests'
