@@ -22,7 +22,6 @@ steps:
     echo "⏳ Waiting for Backend App to become available..."
 
     back='https://finapi-omar.azurewebsites.net'
-    front='https://finweb-omar.azurewebsites.net'
     start_time=$(date +%s)
     max_wait=${maxWaitSeconds:-480}
     interval=${checkIntervalSeconds:-5}
@@ -54,6 +53,7 @@ steps:
 - script: |
     echo "⏳ Waiting for Frontend App to become available..."
 
+    front='https://finweb-omar.azurewebsites.net'
     start_time=$(date +%s)
     max_wait=${maxWaitSeconds:-480}
     interval=${checkIntervalSeconds:-5}
@@ -71,7 +71,7 @@ steps:
 
       if [ "$elapsed" -ge "$max_wait" ]; then
         echo "❌ Frontend did not become ready in $max_wait seconds"
-        exit  
+        exit 1
       fi
 
       echo "⏳ Still waiting for frontend... (${elapsed}s elapsed)"
@@ -85,6 +85,7 @@ steps:
 - script: |
     echo "🔍 Testing Backend App Endpoints with curl..."
 
+    back='https://finapi-omar.azurewebsites.net'
     declare -a backendEndpoints=(
       "/api/retrieve-price?symbol=TEST"
       "/api/client-valuation"
@@ -102,6 +103,7 @@ steps:
         echo "✅ $endpoint OK"
       else
         echo "❌ $endpoint failed with status $http_status"
+        exit 1
       fi
     done
   displayName: 'Run Backend Smoke Tests'
@@ -112,6 +114,7 @@ steps:
 - script: |
     echo "🔍 Testing Frontend App Routes with curl..."
 
+    front='https://finweb-omar.azurewebsites.net'
     declare -a frontendEndpoints=(
       "/"
       "/login"
@@ -124,4 +127,10 @@ steps:
       http_status=$(curl -s -o /dev/null -w "%{http_code}" "$full_url")
 
       if [ "$http_status" -eq 200 ]; then
-        echo "✅ $endpoint
+        echo "✅ $endpoint OK"
+      else
+        echo "❌ $endpoint failed with status $http_status"
+        exit 1
+      fi
+    done
+  displayName: 'Run Frontend Smoke Tests'
