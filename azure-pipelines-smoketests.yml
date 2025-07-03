@@ -23,12 +23,14 @@ steps:
 - script: |
     echo "⏳ Waiting for Backend App to become available..."
 
+    back=${backendBaseUrl}
+    front=${frontendBaseUrl}
     start_time=$(date +%s)
     max_wait=${maxWaitSeconds:-480}
     interval=${checkIntervalSeconds:-5}
 
     while true; do
-      status=$(curl -s -o /dev/null -w "%{http_code}" "$backendBaseUrl/api/slow-endpoint")
+      status=$(curl -s -o /dev/null -w "%{http_code}" "$back/api/slow-endpoint")
 
       if [ "$status" -eq 200 ]; then
         echo "✅ Backend is ready"
@@ -55,11 +57,11 @@ steps:
     echo "⏳ Waiting for Frontend App to become available..."
 
     start_time=$(date +%s)
-    max_wait=${maxWaitSeconds:-180}
+    max_wait=${maxWaitSeconds:-480}
     interval=${checkIntervalSeconds:-5}
 
     while true; do
-      status=$(curl -s -o /dev/null -w "%{http_code}" "$frontendBaseUrl/login")
+      status=$(curl -s -o /dev/null -w "%{http_code}" "$front/login")
 
       if [ "$status" -eq 200 ]; then
         echo "✅ Frontend is ready"
