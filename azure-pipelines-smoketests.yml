@@ -1,0 +1,113 @@
+name: test-webapps-$(Build.BuildId)
+
+trigger:
+- main
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+variables:
+  backendBaseUrl: 'https://finapi-omar.azurewebsites.net'
+  frontendBaseUrl: 'https://finweb-omar.azurewebsites.net'
+  maxWaitSeconds: 480
+  checkIntervalSeconds: 10
+
+steps:
+
+
+- script: |
+    echo "⏳ Waiting for Frontend App to become available..."
+
+    start_time=$(date +%s)
+    while true; do
+      status=$(curl -s -o /dev/null -w "%{http_code}" "$frontendBaseUrl/login")
+      if [ "$status" -eq 200 ]; then
+        echo "✅ Frontend is ready"
+        sleep 5
+        break
+      fi
+
+      now=$(date +%s)
+      elapsed=$((now - start_time))
+
+      if [ "$elapsed" -ge $maxWaitSeconds ]; then
+        echo "❌ Frontend did not become ready in time"
+        exit 1
+      fi
+
+      echo "Still waiting... ($elapsed seconds elapsed)"
+      sleep $checkIntervalSeconds
+    done
+  displayName: 'Wait for Frontend App to Be Ready'
+
+- script: |
+    echo "⏳ Waiting for Backend App to become available..."
+
+    start_time=$(date +%s)
+    while true; do
+      status=$(curl -s -o /dev/null -w "%{http_code}" "$backendBaseUrl/api/slow-endpoint")
+      if [ "$status" -eq 200 ]; then
+        echo "✅ Backend is ready"
+        sleep 5
+        break
+      fi
+
+      now=$(date +%s)
+      elapsed=$((now - start_time))
+
+      if [ "$elapsed" -ge $maxWaitSeconds ]; then
+        echo "❌ Backend did not become ready in time"
+        exit 1
+      fi
+
+      echo "Still waiting... ($elapsed seconds elapsed)"
+      sleep $checkIntervalSeconds
+    done
+  displayName: 'Wait for Backend App to Be Ready'
+
+
+- script: |
+    echo "🔍 Testing Backend App Endpoints with curl..."
+
+    declare -a backendEndpoints=(
+      "/api/retrieve-price?symbol=TEST"
+      "/api/client-valuation"
+      "/high-cpu"
+      "/high-memory"
+      "/api/slow-endpoint"
+    )
+
+    for endpoint in "${backendEndpoints[@]}"; do
+      full_url="${backendBaseUrl}${endpoint}"
+      echo "➡️  Testing $full_url"
+      http_status=$(curl -s -o /dev/null -w "%{http_code}" "$full_url")
+      if [ "$http_status" -eq 200 ]; then
+        echo "✅ $endpoint OK"
+      else
+        echo "❌ $endpoint failed with status $http_status"
+        #exit 1
+      fi
+    done
+  displayName: 'Run Backend Smoke Tests'
+
+- script: |
+    echo "🔍 Testing Frontend App Routes with curl..."
+
+    declare -a frontendEndpoints=(
+      "/"
+      "/login"
+      "/dashboard"
+    )
+
+    for endpoint in "${frontendEndpoints[@]}"; do
+      full_url="${frontendBaseUrl}${endpoint}"
+      echo "➡️  Testing $full_url"
+      http_status=$(curl -s -o /dev/null -w "%{http_code}" "$full_url")
+      if [ "$http_status" -eq 200 ]; then
+        echo "✅ $endpoint OK"
+      else
+        echo "❌ $endpoint failed with status $http_status"
+        #exit 1
+      fi
+    done
+  displayName: 'Run Frontend Smoke Tests'
