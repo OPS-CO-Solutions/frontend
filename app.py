@@ -6,7 +6,7 @@ app.secret_key = 'supersecretkey'  # Replace for production
 
 # Hardcoded credentials
 USERNAME = 'admin'
-PASSWORD = 'password123'
+PASSWORD = 'password1234'
 
 # Your FastAPI backend base URL
 BACKEND_API_BASE = 'https://<YOUR-FASTAPI-BACKEND>.azurewebsites.net'
